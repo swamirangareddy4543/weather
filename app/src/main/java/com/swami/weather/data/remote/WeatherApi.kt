@@ -3,7 +3,6 @@ package com.swami.weather.data.remote
 import retrofit2.http.GET
 import retrofit2.http.Query
 
-// Open-Meteo API - Completely free, no API key required!
 interface WeatherApi {
 
     @GET("v1/forecast")
@@ -16,7 +15,6 @@ interface WeatherApi {
     ): WeatherResponse
 }
 
-// Geocoding API to convert city name to coordinates
 interface GeocodingApi {
 
     @GET("v1/search")

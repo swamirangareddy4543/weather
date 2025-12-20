@@ -32,7 +32,6 @@ class WeatherViewModel(
     }
 
     init {
-        // Load all cached cities on startup
         viewModelScope.launch {
             try {
                 val cachedCities = repository.getAllCachedCities()
@@ -55,13 +54,11 @@ class WeatherViewModel(
 
         viewModelScope.launch {
             try {
-                // Add 30-second timeout to prevent infinite loading
                 val weatherData = withTimeout(30000L) {
                     repository.getWeather(city)
                 }
                 Log.d(TAG, "Weather data received: ${weatherData.size} items")
 
-                // Refresh cached cities list
                 val cachedCities = repository.getAllCachedCities()
                 val cityName = weatherData.firstOrNull()?.city
 
@@ -88,9 +85,11 @@ class WeatherViewModel(
                     e.message?.contains("not found", ignoreCase = true) == true -> {
                         e.message ?: "City not found"
                     }
+
                     e.message?.contains("UnknownHost") == true || e.message?.contains("Unable to resolve host") == true -> {
                         "No internet connection. Showing cached data."
                     }
+
                     else -> "Error: ${e.message ?: "Failed to fetch weather data"}"
                 }
 
@@ -111,16 +110,14 @@ class WeatherViewModel(
             try {
                 val cityWeather = repository.getCachedWeatherByCity(cityName)
 
-                if (cityWeather.isNotEmpty()) {
-                    uiState = uiState.copy(
+                uiState = if (cityWeather.isNotEmpty()) {
+                    uiState.copy(
                         weather = cityWeather,
                         selectedCity = cityName,
                         error = null
                     )
-                    Log.d(TAG, "Selected city: $cityName with ${cityWeather.size} weather records")
                 } else {
-                    Log.w(TAG, "No cached data found for city: $cityName")
-                    uiState = uiState.copy(
+                    uiState.copy(
                         error = "No cached data available for $cityName"
                     )
                 }

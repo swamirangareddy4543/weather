@@ -10,5 +10,7 @@ data class WeatherEntity(
     val date: String,
     val temp: Double,
     val condition: String,
-    val icon: String
+    val icon: String,
+    val tempMin: Double = 0.0,
+    val tempMax: Double = 0.0
 )
