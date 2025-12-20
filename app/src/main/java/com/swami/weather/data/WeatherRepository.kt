@@ -210,6 +210,14 @@ class WeatherRepository(
         return dao.getLastCachedWeather()
     }
 
+    suspend fun getAllCachedWeather(): List<WeatherEntity> {
+        return dao.getAllCachedWeather()
+    }
+
+    suspend fun getAllCachedCities(): List<String> {
+        return dao.getAllCachedCities()
+    }
+
     suspend fun getCachedWeatherByCity(city: String): List<WeatherEntity> {
         return dao.getWeatherByCity(city.trim())
     }

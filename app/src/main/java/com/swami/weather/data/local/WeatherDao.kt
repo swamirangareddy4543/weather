@@ -14,6 +14,12 @@ interface WeatherDao {
     @Query("SELECT * FROM weather ORDER BY date ASC LIMIT 3")
     suspend fun getLastCachedWeather(): List<WeatherEntity>
 
+    @Query("SELECT * FROM weather ORDER BY date ASC")
+    suspend fun getAllCachedWeather(): List<WeatherEntity>
+
+    @Query("SELECT DISTINCT city FROM weather ORDER BY city ASC")
+    suspend fun getAllCachedCities(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(data: List<WeatherEntity>)
 

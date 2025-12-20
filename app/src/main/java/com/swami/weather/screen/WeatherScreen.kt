@@ -11,12 +11,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,7 +64,7 @@ private fun formatDate(dateString: String): String {
         } else {
             dateString
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         dateString
     }
 }
@@ -109,6 +114,33 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Show cached cities if available
+            if (uiState.cachedCities.isNotEmpty()) {
+                Text(
+                    text = "Saved Cities:",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(uiState.cachedCities) { cityName ->
+                        FilterChip(
+                            selected = uiState.selectedCity == cityName,
+                            onClick = { viewModel.selectCity(cityName) },
+                            label = { Text(cityName) },
+                            leadingIcon = if (uiState.selectedCity == cityName) {
+                                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                            } else null
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             // Show error message
             uiState.error?.let { error ->
                 Card(
@@ -141,8 +173,16 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                     style = MaterialTheme.typography.bodyLarge
                 )
             } else if (uiState.weather.isNotEmpty()) {
+                // Filter weather by selected city
+                val displayWeather = if (uiState.selectedCity != null) {
+                    uiState.weather.filter { it.city == uiState.selectedCity }
+                } else {
+                    uiState.weather
+                }
+
                 // Display city name if available
-                uiState.weather.firstOrNull()?.city?.let { cityName ->
+                val cityToDisplay = uiState.selectedCity ?: displayWeather.firstOrNull()?.city
+                cityToDisplay?.let { cityName ->
                     Text(
                         text = "Forecast for $cityName",
                         style = MaterialTheme.typography.titleLarge,
@@ -152,7 +192,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                 }
 
                 LazyColumn {
-                    items(uiState.weather) { weather ->
+                    items(displayWeather) { weather ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
