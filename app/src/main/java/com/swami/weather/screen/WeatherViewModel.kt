@@ -71,33 +71,77 @@ class WeatherViewModel(
                 )
             } catch (e: TimeoutCancellationException) {
                 Log.e(TAG, "Request timeout for: $city", e)
-                uiState = uiState.copy(
-                    isLoading = false,
-                    error = "Request timeout. Please try again."
-                )
+                // Try to find in cached data
+                tryOfflineSearch(city)
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching weather", e)
                 Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
                 Log.e(TAG, "Exception message: ${e.message}")
                 Log.e(TAG, "Stack trace:", e)
 
-                val errorMessage = when {
-                    e.message?.contains("not found", ignoreCase = true) == true -> {
-                        e.message ?: "City not found"
+                val isNetworkError = e.message?.contains("UnknownHost") == true ||
+                                    e.message?.contains("Unable to resolve host") == true
+
+                if (isNetworkError) {
+                    // Network error - try offline search
+                    Log.d(TAG, "Network error detected, searching in cached data")
+                    tryOfflineSearch(city)
+                } else {
+                    val errorMessage = when {
+                        e.message?.contains("not found", ignoreCase = true) == true -> {
+                            e.message ?: "City not found"
+                        }
+                        else -> "Error: ${e.message ?: "Failed to fetch weather data"}"
                     }
 
-                    e.message?.contains("UnknownHost") == true || e.message?.contains("Unable to resolve host") == true -> {
-                        "No internet connection. Showing cached data."
-                    }
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        error = errorMessage
+                    )
+                }
+            }
+        }
+    }
 
-                    else -> "Error: ${e.message ?: "Failed to fetch weather data"}"
+    private suspend fun tryOfflineSearch(city: String) {
+        try {
+            // Search for matching city in cached data
+            val matchedWeather = repository.searchCachedCities(city)
+
+            if (matchedWeather.isNotEmpty()) {
+                val cachedCities = repository.getAllCachedCities()
+                val cityName = matchedWeather.firstOrNull()?.city
+
+                Log.d(TAG, "Found cached weather for: $cityName")
+                uiState = uiState.copy(
+                    weather = matchedWeather,
+                    cachedCities = cachedCities,
+                    selectedCity = cityName,
+                    isLoading = false,
+                    error = "Offline mode: Showing cached data for $cityName"
+                )
+            } else {
+                val cachedCities = repository.getAllCachedCities()
+                Log.d(TAG, "No cached data found for: $city")
+
+                val errorMessage = if (cachedCities.isEmpty()) {
+                    "No internet connection.\n\nCity '$city' not found in cached data.\nNo cities available offline."
+                } else {
+                    "No internet connection.\n\nCity '$city' not found in cached data.\n\nAvailable cities: ${cachedCities.joinToString(", ")}"
                 }
 
                 uiState = uiState.copy(
                     isLoading = false,
+                    cachedCities = cachedCities,
                     error = errorMessage
                 )
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in offline search", e)
+            uiState = uiState.copy(
+                isLoading = false,
+                error = "No internet connection.\n\nUnable to access cached data."
+            )
         }
     }
 

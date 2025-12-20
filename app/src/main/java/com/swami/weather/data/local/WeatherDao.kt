@@ -8,7 +8,7 @@ import androidx.room.Query
 @Dao
 interface WeatherDao {
 
-    @Query("SELECT * FROM weather WHERE city = :city ORDER BY date ASC")
+    @Query("SELECT * FROM weather WHERE LOWER(city) = LOWER(:city) ORDER BY date ASC")
     suspend fun getWeatherByCity(city: String): List<WeatherEntity>
 
     @Query("SELECT * FROM weather ORDER BY date ASC LIMIT 3")
