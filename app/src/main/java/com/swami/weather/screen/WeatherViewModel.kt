@@ -17,7 +17,8 @@ data class WeatherUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val cachedCities: List<String> = emptyList(),
-    val selectedCity: String? = null
+    val selectedCity: String? = null,
+    val hasNavigated: Boolean = false
 )
 
 class WeatherViewModel(
@@ -36,7 +37,6 @@ class WeatherViewModel(
             try {
                 val cachedCities = repository.getAllCachedCities()
                 uiState = uiState.copy(cachedCities = cachedCities)
-                Log.d(TAG, "Loaded ${cachedCities.size} cached cities: $cachedCities")
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading cached cities", e)
             }
@@ -49,7 +49,6 @@ class WeatherViewModel(
             return
         }
 
-        Log.d(TAG, "Fetching weather for: $city")
         uiState = uiState.copy(isLoading = true, error = null)
 
         viewModelScope.launch {
@@ -57,7 +56,6 @@ class WeatherViewModel(
                 val weatherData = withTimeout(30000L) {
                     repository.getWeather(city)
                 }
-                Log.d(TAG, "Weather data received: ${weatherData.size} items")
 
                 val cachedCities = repository.getAllCachedCities()
                 val cityName = weatherData.firstOrNull()?.city
@@ -67,86 +65,39 @@ class WeatherViewModel(
                     cachedCities = cachedCities,
                     selectedCity = cityName,
                     isLoading = false,
+                    hasNavigated = false,
                     error = if (weatherData.isEmpty()) "No weather data found for $city" else null
                 )
-            } catch (e: TimeoutCancellationException) {
-                Log.e(TAG, "Request timeout for: $city", e)
-                // Try to find in cached data
-                tryOfflineSearch(city)
+            } catch (_: TimeoutCancellationException) {
+                uiState = uiState.copy(
+                    weather = emptyList(),
+                    selectedCity = null,
+                    isLoading = false,
+                    hasNavigated = false,
+                    error = "Request timeout. Please check your internet connection and try again."
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "Error fetching weather", e)
-                Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
-                Log.e(TAG, "Exception message: ${e.message}")
-                Log.e(TAG, "Stack trace:", e)
-
                 val isNetworkError = e.message?.contains("UnknownHost") == true ||
-                                    e.message?.contains("Unable to resolve host") == true
+                        e.message?.contains("Unable to resolve host") == true
 
-                if (isNetworkError) {
-                    // Network error - try offline search
-                    Log.d(TAG, "Network error detected, searching in cached data")
-                    tryOfflineSearch(city)
-                } else {
-                    val errorMessage = when {
-                        e.message?.contains("not found", ignoreCase = true) == true -> {
-                            e.message ?: "City not found"
-                        }
-                        else -> "Error: ${e.message ?: "Failed to fetch weather data"}"
+                val errorMessage = when {
+                    isNetworkError -> "No internet connection. Please check your network and try again."
+                    e.message?.contains("not found", ignoreCase = true) == true -> {
+                        e.message ?: "City not found"
                     }
 
-                    uiState = uiState.copy(
-                        isLoading = false,
-                        error = errorMessage
-                    )
-                }
-            }
-        }
-    }
-
-    private suspend fun tryOfflineSearch(city: String) {
-        try {
-            // Search for matching city in cached data
-            val matchedWeather = repository.searchCachedCities(city)
-
-            if (matchedWeather.isNotEmpty()) {
-                val cachedCities = repository.getAllCachedCities()
-                val cityName = matchedWeather.firstOrNull()?.city
-
-                Log.d(TAG, "Found cached weather for: $cityName")
-                uiState = uiState.copy(
-                    weather = matchedWeather,
-                    cachedCities = cachedCities,
-                    selectedCity = cityName,
-                    isLoading = false,
-                    error = "Offline mode: Showing cached data for $cityName"
-                )
-            } else {
-                val cachedCities = repository.getAllCachedCities()
-                Log.d(TAG, "No cached data found for: $city")
-
-                val errorMessage = if (cachedCities.isEmpty()) {
-                    "No internet connection.\n\nCity '$city' not found in cached data.\nNo cities available offline."
-                } else {
-                    "No internet connection.\n\nCity '$city' not found in cached data.\n\nAvailable cities: ${cachedCities.joinToString(", ")}"
+                    else -> "Error: ${e.message ?: "Failed to fetch weather data"}"
                 }
 
                 uiState = uiState.copy(
+                    weather = emptyList(),
+                    selectedCity = null,
                     isLoading = false,
-                    cachedCities = cachedCities,
+                    hasNavigated = false,
                     error = errorMessage
                 )
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in offline search", e)
-            uiState = uiState.copy(
-                isLoading = false,
-                error = "No internet connection.\n\nUnable to access cached data."
-            )
         }
-    }
-
-    fun clearError() {
-        uiState = uiState.copy(error = null)
     }
 
     fun selectCity(cityName: String) {
@@ -158,6 +109,7 @@ class WeatherViewModel(
                     uiState.copy(
                         weather = cityWeather,
                         selectedCity = cityName,
+                        hasNavigated = true,
                         error = null
                     )
                 } else {
@@ -169,5 +121,20 @@ class WeatherViewModel(
                 Log.e(TAG, "Error selecting city: $cityName", e)
             }
         }
+    }
+
+    fun refreshWeather(cityName: String) {
+        fetchWeather(cityName)
+    }
+
+    fun clearNavigationState() {
+        uiState = uiState.copy(
+            hasNavigated = false,
+            error = null
+        )
+    }
+
+    fun markNavigationCompleted() {
+        uiState = uiState.copy(hasNavigated = true)
     }
 }

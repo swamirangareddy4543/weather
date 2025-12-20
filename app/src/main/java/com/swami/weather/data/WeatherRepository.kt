@@ -18,7 +18,6 @@ class WeatherRepository(
 
     suspend fun getWeather(city: String): List<WeatherEntity> {
         return try {
-            Log.d(TAG, "=== Starting weather fetch for: $city ===")
 
             val location = geocodeCity(city.trim())
 
@@ -51,19 +50,20 @@ class WeatherRepository(
             dao.insertAll(data)
             data
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching weather for '$city': ${e.message}")
 
-            // Check if it's a network error
-            val isNetworkError = e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
-                    e.message?.contains("UnknownHost", ignoreCase = true) == true ||
-                    e.message?.contains("Network is unreachable", ignoreCase = true) == true ||
-                    e.message?.contains("No address associated with hostname", ignoreCase = true) == true ||
-                    e.cause?.javaClass?.simpleName?.contains("UnknownHost") == true
+            val isNetworkError =
+                e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
+                        e.message?.contains("UnknownHost", ignoreCase = true) == true ||
+                        e.message?.contains("Network is unreachable", ignoreCase = true) == true ||
+                        e.message?.contains(
+                            "No address associated with hostname",
+                            ignoreCase = true
+                        ) == true ||
+                        e.cause?.javaClass?.simpleName?.contains("UnknownHost") == true
 
             val cachedData = findCachedData(city.trim())
 
             if (cachedData.isEmpty()) {
-                // If no cached data and it's a network error, throw a clear network error
                 if (isNetworkError) {
                     throw Exception("Unable to resolve host")
                 } else {
@@ -71,7 +71,6 @@ class WeatherRepository(
                 }
             }
 
-            Log.d(TAG, "Returning cached data for '$city'")
             cachedData
         }
     }
@@ -89,10 +88,10 @@ class WeatherRepository(
         } catch (e: Exception) {
             e.printStackTrace()
             lastException = e
-            // Check if it's a network error - if so, throw it immediately
             if (e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
                 e.message?.contains("UnknownHost", ignoreCase = true) == true ||
-                e.message?.contains("Failed to connect", ignoreCase = true) == true) {
+                e.message?.contains("Failed to connect", ignoreCase = true) == true
+            ) {
                 throw e
             }
         }
@@ -108,10 +107,10 @@ class WeatherRepository(
                 }
             } catch (e: Exception) {
                 lastException = e
-                // Check if it's a network error - if so, throw it immediately
                 if (e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
                     e.message?.contains("UnknownHost", ignoreCase = true) == true ||
-                    e.message?.contains("Failed to connect", ignoreCase = true) == true) {
+                    e.message?.contains("Failed to connect", ignoreCase = true) == true
+                ) {
                     throw e
                 }
             }
@@ -129,18 +128,18 @@ class WeatherRepository(
             }
         } catch (e: Exception) {
             lastException = e
-            // Check if it's a network error - if so, throw it immediately
             if (e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
                 e.message?.contains("UnknownHost", ignoreCase = true) == true ||
-                e.message?.contains("Failed to connect", ignoreCase = true) == true) {
+                e.message?.contains("Failed to connect", ignoreCase = true) == true
+            ) {
                 throw e
             }
         }
 
-        // If we had a network error, throw it, otherwise throw city not found
         if (lastException?.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
-            lastException?.message?.contains("UnknownHost", ignoreCase = true) == true) {
-            throw lastException!!
+            lastException?.message?.contains("UnknownHost", ignoreCase = true) == true
+        ) {
+            throw lastException
         }
 
         throw Exception("City not found. Try: 'London', 'London,UK', 'New York,US', 'Paris,FR'")
@@ -149,50 +148,38 @@ class WeatherRepository(
     private suspend fun findCachedData(cityInput: String): List<WeatherEntity> {
         val query = cityInput.trim()
 
-        // Try exact match first (case-insensitive via DAO)
         var cached = dao.getWeatherByCity(query)
         if (cached.isNotEmpty()) {
-            Log.d(TAG, "Found exact match for: $query")
             return cached
         }
 
-        // If input contains comma, try just the city part
         if (query.contains(",")) {
             val cityOnly = query.split(",")[0].trim()
             cached = dao.getWeatherByCity(cityOnly)
             if (cached.isNotEmpty()) {
-                Log.d(TAG, "Found match for city part: $cityOnly")
                 return cached
             }
         }
 
-        // Try partial matching against all cached cities
         val allCachedCities = dao.getAllCachedCities()
-        Log.d(TAG, "Searching '$query' in cached cities: $allCachedCities")
 
-        // Try startsWith match (e.g., "London" matches "London, England, UK")
         var matchedCity = allCachedCities.find {
             it.startsWith(query, ignoreCase = true)
         }
 
-        // Try contains match (e.g., "York" matches "New York, US")
         if (matchedCity == null) {
             matchedCity = allCachedCities.find {
                 it.contains(query, ignoreCase = true)
             }
         }
 
-        // If we found a matching city, return its weather data
         if (matchedCity != null) {
-            Log.d(TAG, "Found partial match: $matchedCity")
             cached = dao.getWeatherByCity(matchedCity)
             if (cached.isNotEmpty()) {
                 return cached
             }
         }
 
-        // Don't fall back to last cached weather - return empty if not found
-        Log.d(TAG, "No cached data found for: $query")
         return emptyList()
     }
 
@@ -213,14 +200,6 @@ class WeatherRepository(
         }
     }
 
-    suspend fun getLastCachedWeather(): List<WeatherEntity> {
-        return dao.getLastCachedWeather()
-    }
-
-    suspend fun getAllCachedWeather(): List<WeatherEntity> {
-        return dao.getAllCachedWeather()
-    }
-
     suspend fun getAllCachedCities(): List<String> {
         return dao.getAllCachedCities()
     }
@@ -229,42 +208,6 @@ class WeatherRepository(
         return dao.getWeatherByCity(city.trim())
     }
 
-    suspend fun searchCachedCities(searchQuery: String): List<WeatherEntity> {
-        val query = searchQuery.trim()
-        val allCachedCities = dao.getAllCachedCities()
-
-        Log.d(TAG, "Searching for '$query' in cached cities: $allCachedCities")
-
-        // Try exact match first (case-insensitive)
-        var matchedCity = allCachedCities.find {
-            it.equals(query, ignoreCase = true)
-        }
-
-        // Try partial match at the start (e.g., "London" matches "London, England, UK")
-        if (matchedCity == null) {
-            matchedCity = allCachedCities.find {
-                it.startsWith(query, ignoreCase = true)
-            }
-        }
-
-        // Try contains match (e.g., "York" matches "New York, US")
-        if (matchedCity == null) {
-            matchedCity = allCachedCities.find {
-                it.contains(query, ignoreCase = true)
-            }
-        }
-
-        // If we found a matching city, return its weather data
-        return if (matchedCity != null) {
-            Log.d(TAG, "Found matching city: $matchedCity")
-            dao.getWeatherByCity(matchedCity)
-        } else {
-            Log.d(TAG, "No matching city found for: $query")
-            emptyList()
-        }
-    }
-
-    // Convert WMO Weather codes to readable conditions
     private fun getWeatherCondition(code: Int): String {
         return when (code) {
             0 -> "Clear"
